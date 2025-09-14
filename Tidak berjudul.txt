@@ -1,0 +1,215 @@
+<!doctype html>
+
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Demo Web Top-Up</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--success:#10b981}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Arial;background:linear-gradient(180deg,#071024 0%,#071226 100%);color:#e6eef8;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:100%;max-width:920px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:24px;border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,0.6);display:grid;grid-template-columns:1fr 360px;gap:20px}
+    h1{font-size:20px;margin:0 0 6px}
+    p.lead{margin:0 0 18px;color:var(--muted)}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type=text],select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .amounts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .amt{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+    .amt.active{background:linear-gradient(90deg, rgba(6,182,212,0.12), rgba(16,185,129,0.08));border-color:rgba(6,182,212,0.28)}
+    button.primary{margin-top:12px;padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(90deg,var(--accent),#06b6b4);cursor:pointer;color:#042028;font-weight:700}
+    .sidebar{background:rgba(255,255,255,0.02);padding:16px;border-radius:10px}
+    .row{display:flex;gap:10px}
+    .summary{margin-top:8px;padding:12px;border-radius:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02)}
+    .muted{color:var(--muted);font-size:13px}
+    .log{height:220px;overflow:auto;margin-top:10px;padding:10px;font-size:13px;background:#051225;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+    .success{color:var(--success);font-weight:700}
+    footer{grid-column:1/-1;margin-top:12px;color:var(--muted);font-size:13px}
+    @media(max-width:880px){.card{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div>
+      <h1>Demo Web Top-Up</h1>
+      <p class="lead">Isi data pemain & pilih paket. Ini demo — belum terhubung ke payment gateway nyata.</p><div>
+    <label for="game">Pilih Game</label>
+    <select id="game">
+      <option value="game1" data-currency="IDR">Mobile Legend</option>
+      <option value="game2" data-currency="IDR">Free Fire</option>
+      <option value="game3" data-currency="IDR">PUBG Mobile</option>
+    </select>
+  </div>
+
+  <div style="margin-top:12px">
+    <label for="player">Player ID / Username</label>
+    <input id="player" type="text" placeholder="Masukkan ID atau username" />
+  </div>
+
+  <div style="margin-top:12px">
+    <label>Pilih Nominal Top-Up</label>
+    <div class="amounts" id="amounts">
+      <div class="amt" data-value="10000">10.000</div>
+      <div class="amt" data-value="25000">25.000</div>
+      <div class="amt" data-value="50000">50.000</div>
+      <div class="amt" data-value="100000">100.000</div>
+      <div class="amt" data-value="200000">200.000</div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px">
+    <label for="method">Metode Pembayaran (Demo)</label>
+    <select id="method">
+      <option value="va">Virtual Account (Demo)</option>
+      <option value="ewallet">E-Wallet (Demo)</option>
+      <option value="qris">QRIS (Demo)</option>
+    </select>
+  </div>
+
+  <button class="primary" id="payBtn">Bayar Sekarang</button>
+
+  <div id="message" style="margin-top:12px"></div>
+
+  <footer>Catatan: Untuk produksi sambungkan ke gateway (Midtrans, Xendit, DOKU, Stripe, dsb.) dan lakukan validasi server-side.</footer>
+</div>
+
+<aside class="sidebar">
+  <h3 style="margin:0 0 6px">Ringkasan</h3>
+  <div class="muted">Detail top-up</div>
+  <div class="summary" id="summary">
+    <div>Game: <span id="sGame">-</span></div>
+    <div>Player ID: <span id="sPlayer">-</span></div>
+    <div>Nominal: <span id="sAmount">-</span></div>
+    <div>Biaya Admin: <span id="sFee">-</span></div>
+    <div>Total Bayar: <strong id="sTotal">-</strong></div>
+  </div>
+
+  <h4 style="margin-top:12px">Riwayat (lokal)</h4>
+  <div class="log" id="log"></div>
+
+  <div style="margin-top:8px;display:flex;gap:8px">
+    <button id="clearLog" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--muted);cursor:pointer">Clear</button>
+    <button id="exportLog" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--muted);cursor:pointer">Export JSON</button>
+  </div>
+</aside>
+
+  </div>  <script>
+    // Simple front-end demo for a top-up page.
+    // NOTE: This is only client-side demo. For production you MUST:
+    // 1) Validate all inputs on server
+    // 2) Integrate a real payment gateway (server-to-gateway)
+    // 3) Securely store transaction records in database
+
+    const amountsEl = document.getElementById('amounts');
+    const amtEls = amountsEl.querySelectorAll('.amt');
+    const sGame = document.getElementById('sGame');
+    const sPlayer = document.getElementById('sPlayer');
+    const sAmount = document.getElementById('sAmount');
+    const sFee = document.getElementById('sFee');
+    const sTotal = document.getElementById('sTotal');
+    const logEl = document.getElementById('log');
+    const payBtn = document.getElementById('payBtn');
+    const message = document.getElementById('message');
+
+    let selectedAmount = null;
+    const ADMIN_FEE_PERCENT = 2.5; // contoh fee
+
+    function formatIDR(x){
+      return new Intl.NumberFormat('id-ID').format(x) + ' IDR';
+    }
+
+    function updateSummary(){
+      const gameSel = document.getElementById('game');
+      const player = document.getElementById('player').value.trim();
+      sGame.textContent = gameSel.options[gameSel.selectedIndex].text;
+      sPlayer.textContent = player || '-';
+      sAmount.textContent = selectedAmount ? formatIDR(selectedAmount) : '-';
+      if(selectedAmount){
+        const fee = Math.round(selectedAmount * ADMIN_FEE_PERCENT / 100);
+        sFee.textContent = formatIDR(fee);
+        sTotal.textContent = formatIDR(selectedAmount + fee);
+      } else { sFee.textContent = '-'; sTotal.textContent = '-'; }
+    }
+
+    amtEls.forEach(el=>{
+      el.addEventListener('click', ()=>{
+        amtEls.forEach(x=>x.classList.remove('active'));
+        el.classList.add('active');
+        selectedAmount = parseInt(el.dataset.value,10);
+        updateSummary();
+      });
+    });
+
+    document.getElementById('game').addEventListener('change', updateSummary);
+    document.getElementById('player').addEventListener('input', updateSummary);
+    document.getElementById('method').addEventListener('change', ()=>{
+      // bisa update info metode di summary jika mau
+    });
+
+    // Simple local storage for demo transactions
+    function loadLog(){
+      const data = JSON.parse(localStorage.getItem('topup_log') || '[]');
+      renderLog(data);
+    }
+    function saveLog(tx){
+      const data = JSON.parse(localStorage.getItem('topup_log') || '[]');
+      data.unshift(tx);
+      localStorage.setItem('topup_log', JSON.stringify(data));
+      renderLog(data);
+    }
+    function renderLog(data){
+      if(!data.length) return logEl.innerHTML = '<div class="muted">Belum ada transaksi</div>';
+      logEl.innerHTML = data.map(tx=>{
+        return `<div style="padding:8px;border-bottom:1px dashed rgba(255,255,255,0.02);">`+
+               `<div style="font-size:13px"><strong>${tx.game}</strong> — ${tx.player}</div>`+
+               `<div class="muted">${tx.amountDisplay} • ${tx.method} • ${tx.status} • ${new Date(tx.created).toLocaleString()}</div>`+
+               `</div>`;
+      }).join('');
+    }
+
+    document.getElementById('clearLog').addEventListener('click', ()=>{ if(confirm('Hapus riwayat transaksi lokal?')){ localStorage.removeItem('topup_log'); loadLog(); } });
+    document.getElementById('exportLog').addEventListener('click', ()=>{ const data = localStorage.getItem('topup_log') || '[]'; const blob = new Blob([data],{type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='topup_log.json'; a.click(); URL.revokeObjectURL(url); });
+
+    // 'Handle payment' — demo: simulate calling a server and a payment gateway
+    payBtn.addEventListener('click', async ()=>{
+      message.textContent='';
+      const player = document.getElementById('player').value.trim();
+      const method = document.getElementById('method').value;
+      const gameSel = document.getElementById('game');
+      const game = gameSel.options[gameSel.selectedIndex].text;
+
+      if(!player){ message.innerHTML='<div class="muted">Isi Player ID dulu dong.</div>'; return; }
+      if(!selectedAmount){ message.innerHTML='<div class="muted">Pilih nominal dulu.</div>'; return; }
+
+      payBtn.disabled = true; payBtn.textContent = 'Memproses...';
+
+      // Simulasi request ke server: di produksi ganti fetch ke backend yang menghubungkan payment gateway
+      await new Promise(r=>setTimeout(r, 1100));
+
+      // Random sukses/gagal demo
+      const success = Math.random() > 0.12; // 88% sukses (demo)
+      const fee = Math.round(selectedAmount * ADMIN_FEE_PERCENT / 100);
+      const total = selectedAmount + fee;
+      const tx = {
+        id: 'TX' + Date.now(),
+        game, player, amount:selectedAmount, amountDisplay:formatIDR(selectedAmount), fee, total, method,
+        status: success ? 'SUCCESS' : 'FAILED',
+        created: new Date().toISOString()
+      };
+
+      saveLog(tx);
+
+      if(success){
+        message.innerHTML = `<div class="success">Pembayaran berhasil! ${formatIDR(total)} telah diterima. (Ini demo, tidak ada pengisian nyata)</div>`;
+      } else {
+        message.innerHTML = `<div class="muted">Pembayaran gagal, coba lagi atau hub admin.</div>`;
+      }
+
+      payBtn.disabled = false; payBtn.textContent = 'Bayar Sekarang';
+      updateSummary();
+    });
+
+    // Init
+    updateSummary(); loadLog();
+  </script></body>
+</html>
